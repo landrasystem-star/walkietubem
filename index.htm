@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>WALKIE Tube - 16 Canales</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0a0a0f, #1a1a2e);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            padding: 20px;
+        }
+        
+        .youtube-header {
+            background: #202020;
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .logo-icon { font-size: 2rem; }
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+        }
+        .logo-text span { color: #ff6b6b; }
+        .stats { color: #888; font-size: 0.85rem; }
+        
+        .thumbnails-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .thumbnail-card {
+            background: #1e1e2a;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+            position: relative;
+        }
+        .thumbnail-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,.5);
+            border-color: #2ed573;
+        }
+        .thumbnail-card.active {
+            border-color: #2ed573;
+            box-shadow: 0 0 15px #2ed573;
+        }
+        
+        .unread-badge {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: #ff4757;
+            color: white;
+            border-radius: 20px;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            display: none;
+            z-index: 10;
+        }
+        .unread-badge.visible {
+            display: block;
+        }
+        
+        .thumbnail-img {
+            background: #0a0a0f;
+            padding: 20px 10px;
+            text-align: center;
+            position: relative;
+        }
+        .thumbnail-img .emoji-big {
+            font-size: 3rem;
+        }
+        .thumbnail-img .status-led {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #888;
+        }
+        .thumbnail-img .status-led.online {
+            background: #2ed573;
+            box-shadow: 0 0 5px #2ed573;
+        }
+        .thumbnail-img .status-led.offline {
+            background: #ff4757;
+        }
+        .thumbnail-img .status-led.connecting {
+            background: #ffa502;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .thumbnail-info {
+            padding: 12px;
+        }
+        .thumbnail-title {
+            font-weight: bold;
+            color: white;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .thumbnail-channel {
+            color: #2ed573;
+            font-size: 0.7rem;
+            font-family: monospace;
+            margin-bottom: 8px;
+        }
+        .thumbnail-stats {
+            color: #888;
+            font-size: 0.65rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .player-container {
+            background: #2c2c3e;
+            border-radius: 45px;
+            padding: 25px;
+            box-shadow: 0 20px 40px rgba(0,0,0,.5);
+            margin-top: 20px;
+            transition: all 0.3s;
+            display: none;
+        }
+        .player-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #2ed573;
+        }
+        .player-header h2 {
+            color: #ff6b6b;
+            margin: 0;
+            font-size: 1.4rem;
+        }
+        .player-header .close-player {
+            background: #e74c3c;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .player-header .close-player:hover {
+            background: #c0392b;
+        }
+        
+        .walkie-player {
+            min-height: 500px;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2ed573;
+            color: #0a0a0f;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            z-index: 2000;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        
+        @media (max-width: 900px) {
+            .thumbnails-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+            .thumbnail-img .emoji-big { font-size: 2rem; }
+            .thumbnail-title { font-size: 0.8rem; }
+        }
+        
+        @media (max-width: 500px) {
+            .thumbnails-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="youtube-header">
+        <div class="logo">
+            <div class="logo-icon">📺</div>
+            <div class="logo-text">WALKIE<span>Tube</span></div>
+        </div>
+        <div class="stats">
+            🟢 16 canales | Los 4 principales reciben mensajes en segundo plano
+        </div>
+    </div>
+
+    <div class="thumbnails-grid" id="thumbnailsGrid"></div>
+
+    <div id="playerContainer" class="player-container">
+        <div class="player-header">
+            <h2 id="playerTitle">📞 WALKIE</h2>
+            <button class="close-player" id="closePlayerBtn">✖ CERRAR</button>
+        </div>
+        <div id="walkiePlayer" class="walkie-player"></div>
+    </div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function(){
+    const ICE_SERVERS = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:3478', username: 'openrelayproject', credential: 'openrelayproject' }
+        ],
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all'
+    };
+    const PEER_CONFIG = { host: '0.peerjs.com', port: 443, secure: true, config: ICE_SERVERS, debug: 0 };
+
+    // 16 canales
+    const canales = [
+        { id: 0, nombre: "CANAL 1", userA: "moncho", userB: "luci", emoji: "🎤", mantenerConexion: true },
+        { id: 1, nombre: "CANAL 2", userA: "MONCHO", userB: "diana", emoji: "🎧", mantenerConexion: true },
+        { id: 2, nombre: "CANAL 3", userA: "MoNCHo", userB: "jorge", emoji: "🎵", mantenerConexion: true },
+        { id: 3, nombre: "CANAL 4", userA: "user1", userB: "user2", emoji: "📡", mantenerConexion: true },
+        { id: 4, nombre: "CANAL 5", userA: "familia1", userB: "familia2", emoji: "🏠", mantenerConexion: false },
+        { id: 5, nombre: "CANAL 6", userA: "trabajo1", userB: "trabajo2", emoji: "💼", mantenerConexion: false },
+        { id: 6, nombre: "CANAL 7", userA: "amigos1", userB: "amigos2", emoji: "👥", mantenerConexion: false },
+        { id: 7, nombre: "CANAL 8", userA: "estudio1", userB: "estudio2", emoji: "📚", mantenerConexion: false },
+        { id: 8, nombre: "CANAL 9", userA: "equipoA", userB: "equipoB", emoji: "⚽", mantenerConexion: false },
+        { id: 9, nombre: "CANAL 10", userA: "grupoX", userB: "grupoY", emoji: "🎮", mantenerConexion: false },
+        { id: 10, nombre: "CANAL 11", userA: "sala1", userB: "sala2", emoji: "🏛️", mantenerConexion: false },
+        { id: 11, nombre: "CANAL 12", userA: "claseA", userB: "claseB", emoji: "📖", mantenerConexion: false },
+        { id: 12, nombre: "CANAL 13", userA: "reunion1", userB: "reunion2", emoji: "🗣️", mantenerConexion: false },
+        { id: 13, nombre: "CANAL 14", userA: "evento1", userB: "evento2", emoji: "🎉", mantenerConexion: false },
+        { id: 14, nombre: "CANAL 15", userA: "directo1", userB: "directo2", emoji: "📹", mantenerConexion: false },
+        { id: 15, nombre: "CANAL 16", userA: "extra1", userB: "extra2", emoji: "⭐", mantenerConexion: false }
+    ];
+
+    let instanciasWalkies = {};
+    let canalActualVisible = null;
+    let walkieVisible = null;
+    let mensajesNoLeidos = {};
+
+    // ============ CLASE WALKIE ============
+    class WalkieInstance {
+        constructor(canal) {
+            this.canal = canal;
+            this.idx = canal.id;
+            this.userAId = canal.userA;
+            this.userBId = canal.userB;
+            this.nombreA = canal.userA;
+            this.nombreB = canal.userB;
+            this.miId = "";
+            this.idDestino = "";
+            this.peer = null;
+            this.stream = null;
+            this.llamada = null;
+            this.audio = null;
+            this.conectado = false;
+            this.hablando = false;
+            this.dataConnection = null;
+            this.modoActual = "voz";
+            this.manosLibresActivo = false;
+            this.cambioAutomaticoHabilitado = true;
+            this.reconectando = false;
+            this.visible = false;
+            this.mensajesPendientes = [];
+            this.domInicializado = false;
+            this.containerId = `walkiePlayer_${this.idx}`;
+            this.hiddenMode = false; // Nuevo: si está en modo oculto pero activo
+        }
+
+        crearHTML() {
+            return `
+                <div id="${this.containerId}" class="walkie-embed">
+                    <div style="text-align:center;margin-bottom:15px;">
+                        <h2 style="color:#ff6b6b;margin:0;">📞 WALKIE ${this.canal.nombre}</h2>
+                        <p style="color:#2ed573;margin:5px 0;">${this.userAId} ↔ ${this.userBId}</p>
+                    </div>
+                    
+                    <div class="hablando-indicador" style="background:#0a0a0f;border-radius:12px;padding:8px;margin-bottom:15px;text-align:center;">
+                        <span id="indicador_${this.idx}" style="color:#888;">🔇 Nadie está hablando</span>
+                    </div>
+                    
+                    <div style="background:#0a0a0f;border-radius:18px;padding:15px;margin-bottom:20px;">
+                        <div style="color:#888;text-align:center;margin-bottom:12px;">🎭 ELIGE TU IDENTIDAD:</div>
+                        <div style="display:flex;gap:15px;">
+                            <button id="btnA_${this.idx}" style="flex:1;padding:15px;border:2px solid #2ed573;background:transparent;border-radius:25px;color:white;font-weight:bold;cursor:pointer;">👤 ${this.userAId}</button>
+                            <button id="btnB_${this.idx}" style="flex:1;padding:15px;border:2px solid #2ed573;background:transparent;border-radius:25px;color:white;font-weight:bold;cursor:pointer;">👥 ${this.userBId}</button>
+                        </div>
+                    </div>
+                    
+                    <div style="background:#0a0a0f;border-radius:18px;padding:15px;margin-bottom:20px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span style="color:#888;">🎭 Mi ID:</span><span id="miId_${this.idx}" style="color:#2ed573;">---</span></div>
+                        <div style="display:flex;justify-content:space-between;"><span style="color:#888;">👥 ID amigo:</span><span id="otroId_${this.idx}" style="color:#2ed573;">---</span></div>
+                    </div>
+                    
+                    <div style="background:#1e1e2a;border-radius:12px;padding:10px;margin-bottom:15px;text-align:center;font-size:0.8rem;color:#888;">
+                        🔄 Mantenimiento activo | 🎵 Anti-suspensión ON
+                    </div>
+                    
+                    <div style="display:flex;gap:15px;margin-bottom:20px;">
+                        <div style="flex:1;text-align:center;padding:15px;background:#1e1e2a;border-radius:25px;"><div style="font-weight:bold;color:white;">🎭 YO</div><div id="statusMi_${this.idx}" style="font-size:0.75rem;color:#aaa;">---</div><div id="miIdPeque_${this.idx}" style="font-size:0.75rem;color:#2ed573;">---</div></div>
+                        <div style="flex:1;text-align:center;padding:15px;background:#1e1e2a;border-radius:25px;"><div style="font-weight:bold;color:white;">👥 OTRO</div><div id="statusOtro_${this.idx}" style="font-size:0.75rem;color:#aaa;">---</div><div id="otroIdPeque_${this.idx}" style="font-size:0.75rem;color:#2ed573;">---</div></div>
+                    </div>
+                    
+                    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+                        <button id="modoBtn_${this.idx}" style="flex:1;padding:12px;border:none;border-radius:14px;background:#2ed573;color:white;font-weight:bold;cursor:pointer;">📻 MODO PTT</button>
+                        <button id="limpiarBtn_${this.idx}" style="flex:1;padding:12px;border:none;border-radius:14px;background:#e74c3c;color:white;font-weight:bold;cursor:pointer;">🧹 LIMPIAR</button>
+                        <button id="llamarBtn_${this.idx}" style="flex:1;padding:12px;border:none;border-radius:14px;background:#9b59b6;color:white;font-weight:bold;cursor:pointer;">📞 LLAMAR</button>
+                        <button id="manosBtn_${this.idx}" style="flex:1;padding:12px;border:none;border-radius:14px;background:#3498db;color:white;font-weight:bold;cursor:pointer;">🔊 MANOS LIBRES</button>
+                    </div>
+                    
+                    <div id="ptt_${this.idx}" class="ptt-btn" style="width:140px;height:140px;border-radius:50%;background:radial-gradient(#34495e,#2c3e50);border:5px solid #ecf0f1;margin:20px auto;display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;font-weight:bold;cursor:pointer;opacity:0.4;pointer-events:none;">🎤<br>PTT</div>
+                    
+                    <div style="margin-top:20px;border-top:1px solid #2c2c3e;padding-top:15px;">
+                        <div style="display:flex;gap:10px;margin-bottom:12px;">
+                            <button id="vozBtn_${this.idx}" style="flex:1;padding:10px;border:none;border-radius:12px;background:#2ed573;color:white;font-weight:bold;cursor:pointer;">🎤 VOZ</button>
+                            <button id="textoBtn_${this.idx}" style="flex:1;padding:10px;border:none;border-radius:12px;background:#1e1e2a;color:white;font-weight:bold;cursor:pointer;">💬 TEXTO</button>
+                        </div>
+                        <div id="panelChat_${this.idx}" style="display:none;">
+                            <div id="chatMsgs_${this.idx}" style="background:#0a0a0f;border-radius:18px;padding:12px;height:120px;overflow-y:auto;font-size:0.8rem;"><div style="color:#888;text-align:center;">💬 Mensajes</div></div>
+                            <div style="display:flex;gap:10px;margin-top:12px;"><input type="text" id="msgInput_${this.idx}" placeholder="Mensaje..." style="flex:1;padding:12px;border-radius:25px;border:none;background:#1e1e2a;color:white;"><button id="enviarBtn_${this.idx}" style="background:#2ed573;border:none;border-radius:25px;padding:0 20px;font-weight:bold;cursor:pointer;">📨</button></div>
+                        </div>
+                    </div>
+                    
+                    <div id="estado_${this.idx}" style="text-align:center;margin-top:12px;padding:10px;border-radius:12px;background:#ff475722;color:#ff4757;">⚡ Selecciona ${this.userAId} o ${this.userBId}</div>
+                </div>
+            `;
+        }
+
+        conectarEventos() {
+            document.getElementById(`btnA_${this.idx}`)?.addEventListener('click', () => this.seleccionarUserA());
+            document.getElementById(`btnB_${this.idx}`)?.addEventListener('click', () => this.seleccionarUserB());
+            document.getElementById(`modoBtn_${this.idx}`)?.addEventListener('click', () => this.toggleModo());
+            document.getElementById(`limpiarBtn_${this.idx}`)?.addEventListener('click', () => this.limpiar());
+            document.getElementById(`llamarBtn_${this.idx}`)?.addEventListener('click', () => this.enviarLlamada());
+            document.getElementById(`manosBtn_${this.idx}`)?.addEventListener('click', () => this.toggleManosLibres());
+            document.getElementById(`enviarBtn_${this.idx}`)?.addEventListener('click', () => this.enviarMensajeTexto());
+            document.getElementById(`vozBtn_${this.idx}`)?.addEventListener('click', () => this.cambiarAVozManual());
+            document.getElementById(`textoBtn_${this.idx}`)?.addEventListener('click', () => this.cambiarATextoAutomatico("Manual"));
+            
+            const msgInput = document.getElementById(`msgInput_${this.idx}`);
+            if(msgInput) msgInput.onkeypress = (e) => { if (e.key === 'Enter') this.enviarMensajeTexto(); };
+            
+            const ptt = document.getElementById(`ptt_${this.idx}`);
+            if(ptt) {
+                let isPressed = false;
+                const startTalk = async () => {
+                    if (this.manosLibresActivo) return;
+                    if (!this.conectado) { this.mostrarToast('⚠️ Espera conexión'); return; }
+                    if (!this.hablando && !isPressed) {
+                        isPressed = true;
+                        if(await this.iniciarLlamada()) {
+                            this.hablando = true;
+                            ptt.style.background = 'radial-gradient(#ff4757,#c0392b)';
+                            ptt.innerHTML = '🎤<br>HABLANDO';
+                            this.enviarEstadoHablando(true);
+                        } else isPressed = false;
+                    }
+                };
+                const stopTalk = () => {
+                    if (this.manosLibresActivo) return;
+                    if (this.hablando && isPressed) {
+                        this.detenerLlamada();
+                        this.hablando = false;
+                        ptt.style.background = 'radial-gradient(#34495e,#2c3e50)';
+                        ptt.innerHTML = '🎤<br>PTT';
+                        this.enviarEstadoHablando(false);
+                    }
+                    isPressed = false;
+                };
+                ptt.onmousedown = startTalk;
+                ptt.onmouseup = stopTalk;
+                ptt.onmouseleave = stopTalk;
+                ptt.ontouchstart = (e) => { e.preventDefault(); startTalk(); };
+                ptt.ontouchend = (e) => { e.preventDefault(); stopTalk(); };
+            }
+        }
+
+        actualizarLED(estado) {
+            const led = document.getElementById(`led_${this.idx}`);
+            if(led) {
+                led.classList.remove('online', 'offline', 'connecting');
+                if(estado === 'online') led.classList.add('online');
+                else if(estado === 'connecting') led.classList.add('connecting');
+                else led.classList.add('offline');
+            }
+        }
+
+        actualizarUI() {
+            const miIdSpan = document.getElementById(`miId_${this.idx}`);
+            const otroIdSpan = document.getElementById(`otroId_${this.idx}`);
+            const miIdPeque = document.getElementById(`miIdPeque_${this.idx}`);
+            const otroIdPeque = document.getElementById(`otroIdPeque_${this.idx}`);
+            const statusMi = document.getElementById(`statusMi_${this.idx}`);
+            const statusOtro = document.getElementById(`statusOtro_${this.idx}`);
+            const estadoDiv = document.getElementById(`estado_${this.idx}`);
+            
+            if(miIdSpan) miIdSpan.innerText = this.miId || "❌";
+            if(otroIdSpan) otroIdSpan.innerText = this.idDestino || "❌";
+            if(miIdPeque) miIdPeque.innerText = this.miId || "---";
+            if(otroIdPeque) otroIdPeque.innerText = this.idDestino || "---";
+            if(statusMi) statusMi.innerHTML = this.conectado ? '🟢 Conectado' : '🟡 Conectando...';
+            if(statusOtro && this.idDestino) statusOtro.innerHTML = `🎯 ${this.idDestino}`;
+            if(estadoDiv && this.conectado) {
+                estadoDiv.innerHTML = `✅ Conectado como "${this.miId}"`;
+                estadoDiv.style.background = '#2ed57322';
+                estadoDiv.style.color = '#2ed573';
+            } else if(estadoDiv && !this.conectado && this.miId) {
+                estadoDiv.innerHTML = `🟡 Conectando como "${this.miId}"...`;
+                estadoDiv.style.background = '#ffa50222';
+                estadoDiv.style.color = '#ffa502';
+            }
+            
+            if(this.conectado) this.actualizarLED('online');
+            else if(this.peer && !this.conectado) this.actualizarLED('connecting');
+            else this.actualizarLED('offline');
+            
+            const btnA = document.getElementById(`btnA_${this.idx}`);
+            const btnB = document.getElementById(`btnB_${this.idx}`);
+            if(btnA && btnB) {
+                if(this.miId === this.userAId) {
+                    btnA.style.background = '#2ed573';
+                    btnA.style.color = '#0a0a0f';
+                    btnB.style.background = 'transparent';
+                    btnB.style.color = 'white';
+                } else if(this.miId === this.userBId) {
+                    btnB.style.background = '#2ed573';
+                    btnB.style.color = '#0a0a0f';
+                    btnA.style.background = 'transparent';
+                    btnA.style.color = 'white';
+                } else {
+                    btnA.style.background = 'transparent';
+                    btnA.style.color = 'white';
+                    btnB.style.background = 'transparent';
+                    btnB.style.color = 'white';
+                }
+            }
+            
+            const ptt = document.getElementById(`ptt_${this.idx}`);
+            if(ptt && this.miId) {
+                ptt.style.opacity = '1';
+                ptt.style.pointerEvents = 'auto';
+            } else if(ptt) {
+                ptt.style.opacity = '0.4';
+                ptt.style.pointerEvents = 'none';
+            }
+        }
+
+        mostrarToast(msg) {
+            let toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        notificarMensajeNoLeido(remitente, texto) {
+            if(!mensajesNoLeidos[this.idx]) mensajesNoLeidos[this.idx] = 0;
+            mensajesNoLeidos[this.idx]++;
+            const badge = document.getElementById(`unread_${this.idx}`);
+            if(badge) {
+                badge.innerText = mensajesNoLeidos[this.idx];
+                badge.classList.add('visible');
+            }
+            if(canalActualVisible !== this.idx) {
+                this.mostrarToast(`📨 Nuevo mensaje en ${this.canal.nombre}: ${remitente}: ${texto.substring(0, 30)}`);
+            }
+            this.mensajesPendientes.push({ remitente, texto, timestamp: Date.now() });
+        }
+
+        actualizarIndicador(hablando, quien) {
+            const indicador = document.getElementById(`indicador_${this.idx}`);
+            if(indicador) {
+                if(hablando) {
+                    indicador.innerHTML = `<span style="color:#ff4757;animation:pulse 1s infinite;">🎤 ${quien} está hablando 🔴</span>`;
+                } else {
+                    indicador.innerHTML = `<span style="color:#888;">🔇 Nadie está hablando</span>`;
+                }
+            }
+        }
+
+        agregarMensajeChat(remitente, texto, esMio) {
+            const chatMsgs = document.getElementById(`chatMsgs_${this.idx}`);
+            if(!chatMsgs) return;
+            if(chatMsgs.children.length === 1 && chatMsgs.children[0].innerText.includes("Mensajes")) {
+                chatMsgs.innerHTML = "";
+            }
+            const msgDiv = document.createElement('div');
+            msgDiv.style.textAlign = esMio ? 'right' : 'left';
+            msgDiv.style.margin = '5px 0';
+            msgDiv.style.color = esMio ? '#2ed573' : '#ffa502';
+            msgDiv.innerHTML = `<div style="font-weight:bold;font-size:0.7rem;">${remitente}:</div><div>${texto}</div>`;
+            chatMsgs.appendChild(msgDiv);
+            chatMsgs.scrollTop = chatMsgs.scrollHeight;
+            
+            if(canalActualVisible === this.idx) {
+                mensajesNoLeidos[this.idx] = 0;
+                const badge = document.getElementById(`unread_${this.idx}`);
+                if(badge) badge.classList.remove('visible');
+            }
+        }
+
+        reproducirSonidoLocal() {
+            try { new Audio('sonido.wav').play().catch(e=>{}); } catch(e){}
+        }
+        reproducirSonidoLlamada() {
+            try { new Audio('sonido2.wav').play().catch(e=>{}); } catch(e){}
+        }
+
+        enviarEstadoHablando(estado) {
+            if (this.dataConnection && this.dataConnection.open) {
+                this.dataConnection.send({ type: 'hablando', desde: this.miId, estado: estado });
+            }
+        }
+
+        cambiarATextoAutomatico(origen) {
+            if (!this.cambioAutomaticoHabilitado || this.modoActual === "texto") return;
+            this.cambioAutomaticoHabilitado = false;
+            this.modoActual = "texto";
+            const vozBtn = document.getElementById(`vozBtn_${this.idx}`);
+            const textoBtn = document.getElementById(`textoBtn_${this.idx}`);
+            const ptt = document.getElementById(`ptt_${this.idx}`);
+            const panelChat = document.getElementById(`panelChat_${this.idx}`);
+            if(vozBtn) vozBtn.style.background = '#1e1e2a';
+            if(textoBtn) textoBtn.style.background = '#ffa502';
+            if(ptt) ptt.style.display = 'none';
+            if(panelChat) panelChat.style.display = 'block';
+            if (this.hablando && !this.manosLibresActivo) {
+                this.detenerLlamada();
+                this.hablando = false;
+                if(ptt) {
+                    ptt.style.background = 'radial-gradient(#34495e,#2c3e50)';
+                    ptt.innerHTML = '🎤<br>PTT';
+                }
+                this.enviarEstadoHablando(false);
+            }
+            setTimeout(() => { this.cambioAutomaticoHabilitado = true; }, 500);
+        }
+
+        cambiarAVozManual() {
+            if (this.modoActual === "voz") return;
+            this.modoActual = "voz";
+            const vozBtn = document.getElementById(`vozBtn_${this.idx}`);
+            const textoBtn = document.getElementById(`textoBtn_${this.idx}`);
+            const ptt = document.getElementById(`ptt_${this.idx}`);
+            const panelChat = document.getElementById(`panelChat_${this.idx}`);
+            if(vozBtn) vozBtn.style.background = '#2ed573';
+            if(textoBtn) textoBtn.style.background = '#1e1e2a';
+            if(ptt) ptt.style.display = 'flex';
+            if(panelChat) panelChat.style.display = 'none';
+        }
+
+        async iniciarLlamada() {
+            if(!this.peer || !this.idDestino) return false;
+            if(!this.stream) {
+                try { 
+                    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true }); 
+                    this.stream.getAudioTracks().forEach(t => t.enabled = false); 
+                } catch(e) { 
+                    this.mostrarToast('🎤 Permite el micrófono'); 
+                    return false; 
+                }
+            }
+            this.stream.getAudioTracks().forEach(t => t.enabled = true);
+            if(this.llamada) try { this.llamada.close(); } catch(e) {}
+            try {
+                this.llamada = this.peer.call(this.idDestino, this.stream);
+                return true;
+            } catch(e) { return false; }
+        }
+
+        detenerLlamada() { 
+            if(this.stream) this.stream.getAudioTracks().forEach(t => t.enabled = false); 
+            if(this.llamada) { try { this.llamada.close(); } catch(e) {} this.llamada = null; } 
+        }
+
+        enviarMensajeTexto() {
+            const msgInput = document.getElementById(`msgInput_${this.idx}`);
+            const texto = msgInput?.value.trim();
+            if(!texto) { this.mostrarToast('📝 Escribe un mensaje'); return; }
+            if(!this.idDestino) { this.mostrarToast('⚠️ Selecciona identidad'); return; }
+            if (this.modoActual !== "texto") this.cambiarATextoAutomatico("Yo");
+            if (this.dataConnection?.open) {
+                this.dataConnection.send({ type: 'texto', desde: this.miId, texto: texto });
+                this.dataConnection.send({ type: 'sonido', desde: this.miId });
+                this.agregarMensajeChat(this.miId, texto, true);
+                msgInput.value = '';
+            } else { this.mostrarToast('🔄 Canal no disponible'); }
+        }
+
+        establecerConexionDatos() {
+            if (!this.peer || !this.idDestino) return;
+            if (this.dataConnection?.open) return;
+            try {
+                this.dataConnection = this.peer.connect(this.idDestino, { reliable: true });
+                this.dataConnection.on('open', () => { this.dataConnection.send({ type: 'handshake', desde: this.miId }); });
+                this.dataConnection.on('data', (data) => {
+                    if (data.type === 'texto') {
+                        if(this.visible) {
+                            this.agregarMensajeChat(data.desde, data.texto, false);
+                        } else {
+                            this.notificarMensajeNoLeido(data.desde, data.texto);
+                        }
+                        if (this.cambioAutomaticoHabilitado && this.modoActual !== "texto" && this.visible) {
+                            this.cambiarATextoAutomatico(data.desde);
+                        }
+                    } else if (data.type === 'sonido') {
+                        this.reproducirSonidoLocal();
+                    } else if (data.type === 'llamada') {
+                        this.mostrarToast(`📞 ${data.desde} te llama en ${this.canal.nombre}!`);
+                        this.reproducirSonidoLlamada();
+                    } else if (data.type === 'hablando') {
+                        this.actualizarIndicador(data.estado, data.desde);
+                    }
+                });
+                this.dataConnection.on('close', () => { this.dataConnection = null; });
+            } catch(e) {}
+        }
+
+        conectarPeer(miID, otroID) {
+            if(this.reconectando) return;
+            this.reconectando = true;
+            if (this.peer) { 
+                try { this.peer.destroy(); } catch(e) {} 
+                this.peer = null;
+            }
+            this.miId = miID; 
+            this.idDestino = otroID; 
+            this.conectado = false; 
+            this.hablando = false;
+            this.actualizarUI();
+            if(this.visible) this.mostrarToast(`🔌 Conectando como "${miID}"...`);
+            try {
+                this.peer = new Peer(miID, PEER_CONFIG);
+                this.peer.on('open', () => {
+                    this.conectado = true;
+                    this.reconectando = false;
+                    this.actualizarUI();
+                    if(this.visible) this.mostrarToast(`✅ Conectado como "${this.miId}"!`);
+                    this.establecerConexionDatos();
+                    if(this.mensajesPendientes.length > 0 && this.visible) {
+                        this.mensajesPendientes.forEach(msg => {
+                            this.agregarMensajeChat(msg.remitente, msg.texto, false);
+                        });
+                        this.mensajesPendientes = [];
+                        mensajesNoLeidos[this.idx] = 0;
+                        const badge = document.getElementById(`unread_${this.idx}`);
+                        if(badge) badge.classList.remove('visible');
+                    }
+                });
+                this.peer.on('connection', (conn) => {
+                    if (this.dataConnection) try { this.dataConnection.close(); } catch(e) {}
+                    this.dataConnection = conn;
+                    this.dataConnection.on('open', () => { this.dataConnection.send({ type: 'handshake', desde: this.miId }); });
+                    this.dataConnection.on('data', (data) => {
+                        if (data.type === 'texto') {
+                            if(this.visible) {
+                                this.agregarMensajeChat(data.desde, data.texto, false);
+                            } else {
+                                this.notificarMensajeNoLeido(data.desde, data.texto);
+                            }
+                            if (this.cambioAutomaticoHabilitado && this.modoActual !== "texto" && this.visible) {
+                                this.cambiarATextoAutomatico(data.desde);
+                            }
+                        } else if (data.type === 'sonido') this.reproducirSonidoLocal();
+                        else if (data.type === 'llamada') { 
+                            this.mostrarToast(`📞 ${data.desde} te llama en ${this.canal.nombre}!`);
+                            this.reproducirSonidoLlamada(); 
+                        }
+                        else if (data.type === 'hablando') this.actualizarIndicador(data.estado, data.desde);
+                    });
+                });
+                this.peer.on('call', (call) => {
+                    if (this.stream) {
+                        call.answer(this.stream);
+                        call.on('stream', (s) => {
+                            if (this.audio) { this.audio.pause(); this.audio.srcObject = null; }
+                            this.audio = new Audio();
+                            this.audio.srcObject = s;
+                            this.audio.autoplay = true;
+                        });
+                    }
+                });
+                this.peer.on('error', (err) => {
+                    this.reconectando = false;
+                    if (err.type === 'unavailable-id' && this.visible) {
+                        this.mostrarToast(`❌ ID "${miID}" ya en uso`);
+                    }
+                });
+                this.peer.on('disconnected', () => { 
+                    this.conectado = false; 
+                    this.actualizarUI();
+                });
+            } catch(e) { this.reconectando = false; }
+        }
+
+        seleccionarUserA() { 
+            if(this.miId === this.userAId) return; 
+            if(this.peer) this.peer.destroy(); 
+            this.conectarPeer(this.userAId, this.userBId); 
+        }
+        seleccionarUserB() { 
+            if(this.miId === this.userBId) return; 
+            if(this.peer) this.peer.destroy(); 
+            this.conectarPeer(this.userBId, this.userAId); 
+        }
+        
+        limpiar() {
+            if(this.dataConnection) this.dataConnection.close();
+            if(this.llamada) this.llamada.close();
+            if(this.peer) this.peer.destroy();
+            if(this.stream) this.stream.getTracks().forEach(t => t.stop());
+            this.conectado = false; this.hablando = false;
+            this.miId = ""; this.idDestino = "";
+            this.dataConnection = null; this.peer = null; this.stream = null; this.llamada = null;
+            this.actualizarUI();
+            if(this.visible) this.mostrarToast(`🧹 Limpiado. Selecciona ${this.nombreA} o ${this.nombreB}`);
+            this.actualizarLED('offline');
+            const estadoDiv = document.getElementById(`estado_${this.idx}`);
+            if(estadoDiv) {
+                estadoDiv.innerHTML = `⚡ Selecciona ${this.nombreA} o ${this.nombreB}`;
+                estadoDiv.style.background = '#ff475722';
+                estadoDiv.style.color = '#ff4757';
+            }
+            const indicador = document.getElementById(`indicador_${this.idx}`);
+            if(indicador) indicador.innerHTML = `<span style="color:#888;">🔇 Nadie está hablando</span>`;
+        }
+        
+        toggleManosLibres() {
+            this.manosLibresActivo = !this.manosLibresActivo;
+            const btn = document.getElementById(`manosBtn_${this.idx}`);
+            const ptt = document.getElementById(`ptt_${this.idx}`);
+            if (this.manosLibresActivo) {
+                btn.style.background = '#2ed573';
+                btn.innerHTML = '🎙️ ON';
+                ptt.style.opacity = '0.5';
+                ptt.style.pointerEvents = 'none';
+                if (this.llamada && this.stream) { this.stream.getAudioTracks().forEach(t => t.enabled = true); this.enviarEstadoHablando(true); }
+                else if (this.conectado && this.idDestino) { this.iniciarLlamada().then(() => { if(this.stream) { this.stream.getAudioTracks().forEach(t => t.enabled = true); this.enviarEstadoHablando(true); } }); }
+            } else {
+                btn.style.background = '#3498db';
+                btn.innerHTML = '🔊 ML';
+                ptt.style.opacity = '1';
+                ptt.style.pointerEvents = 'auto';
+                if (this.llamada && this.hablando) { this.detenerLlamada(); this.hablando = false; this.enviarEstadoHablando(false); }
+            }
+        }
+        
+        enviarLlamada() {
+            if (!this.idDestino) { this.mostrarToast('⚠️ Selecciona identidad'); return; }
+            if (!this.conectado) { this.mostrarToast('⚠️ Espera conexión'); return; }
+            if (this.dataConnection?.open) {
+                this.dataConnection.send({ type: 'llamada', desde: this.miId });
+                this.reproducirSonidoLlamada();
+                this.mostrarToast(`✅ Notón a ${this.idDestino}`);
+            } else { this.mostrarToast('🔄 Canal no disponible'); }
+        }
+        
+        toggleModo() { 
+            if (this.modoActual === "voz") this.cambiarAVozManual(); 
+            else this.cambiarAVozManual(); 
+        }
+
+        mostrar(container) {
+            // Si ya tiene DOM, solo mostrarlo
+            if(this.domInicializado && document.getElementById(this.containerId)) {
+                // Mover el contenedor al player si es necesario
+                const existingDiv = document.getElementById(this.containerId);
+                if(existingDiv && existingDiv.parentElement !== container) {
+                    container.appendChild(existingDiv);
+                }
+            } else {
+                container.innerHTML = this.crearHTML();
+                this.conectarEventos();
+                this.domInicializado = true;
+            }
+            this.visible = true;
+            this.hiddenMode = false;
+            this.actualizarUI();
+            mensajesNoLeidos[this.idx] = 0;
+            const badge = document.getElementById(`unread_${this.idx}`);
+            if(badge) badge.classList.remove('visible');
+            if(this.mensajesPendientes.length > 0) {
+                this.mensajesPendientes.forEach(msg => {
+                    this.agregarMensajeChat(msg.remitente, msg.texto, false);
+                });
+                this.mensajesPendientes = [];
+            }
+        }
+
+        ocultar() {
+            this.visible = false;
+            // NOTA: No destruimos el DOM, solo lo ocultamos visualmente
+            // La conexión PeerJS sigue activa en segundo plano
+        }
+        
+        // Para canales principales: mantener conexión aunque no estén visibles
+        iniciarEnSegundoPlano() {
+            if(!this.domInicializado) {
+                // Crear el DOM pero en un contenedor fuera de pantalla
+                const hiddenContainer = document.createElement('div');
+                hiddenContainer.style.position = 'absolute';
+                hiddenContainer.style.left = '-9999px';
+                hiddenContainer.style.top = '-9999px';
+                hiddenContainer.style.width = '1px';
+                hiddenContainer.style.height = '1px';
+                hiddenContainer.style.overflow = 'hidden';
+                document.body.appendChild(hiddenContainer);
+                hiddenContainer.innerHTML = this.crearHTML();
+                this.conectarEventos();
+                this.domInicializado = true;
+                this.hiddenMode = true;
+                this.visible = false;
+            }
+        }
+    }
+
+    // Generar miniaturas
+    const grid = document.getElementById('thumbnailsGrid');
+    
+    canales.forEach((canal, index) => {
+        const card = document.createElement('div');
+        card.className = 'thumbnail-card';
+        card.setAttribute('data-canal-id', canal.id);
+        card.innerHTML = `
+            <div class="unread-badge" id="unread_${canal.id}">0</div>
+            <div class="thumbnail-img">
+                <div class="emoji-big">${canal.emoji}</div>
+                <div class="status-led offline" id="led_${canal.id}"></div>
+            </div>
+            <div class="thumbnail-info">
+                <div class="thumbnail-title">${canal.nombre}</div>
+                <div class="thumbnail-channel">${canal.userA} / ${canal.userB}</div>
+                <div class="thumbnail-stats">
+                    <span>🎤 voz</span>
+                    <span>💬 chat</span>
+                    <span>🔊 ML</span>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+        
+        // Crear instancia del walkie
+        const walkie = new WalkieInstance(canal);
+        instanciasWalkies[canal.id] = walkie;
+        
+        // Para los 4 principales: iniciar en segundo plano SIN mostrar
+        if(canal.mantenerConexion) {
+            walkie.iniciarEnSegundoPlano();
+        }
+        
+        // Evento click
+        card.addEventListener('click', (function(c) {
+            return function() { abrirCanal(c); };
+        })(canal));
+    });
+
+    // Abrir canal en reproductor
+    function abrirCanal(canal) {
+        console.log("Abriendo canal:", canal.id, canal.nombre);
+        const playerContainer = document.getElementById('playerContainer');
+        const walkiePlayerDiv = document.getElementById('walkiePlayer');
+        const playerTitle = document.getElementById('playerTitle');
+        
+        if(walkieVisible && walkieVisible !== instanciasWalkies[canal.id]) {
+            walkieVisible.ocultar();
+        }
+        
+        const walkie = instanciasWalkies[canal.id];
+        if(walkie) {
+            walkie.mostrar(walkiePlayerDiv);
+            walkieVisible = walkie;
+            canalActualVisible = canal.id;
+            
+            playerTitle.innerHTML = `📞 WALKIE ${canal.nombre}`;
+            playerContainer.style.display = 'block';
+            
+            document.querySelectorAll('.thumbnail-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            const activeCard = document.querySelector(`.thumbnail-card[data-canal-id="${canal.id}"]`);
+            if(activeCard) activeCard.classList.add('active');
+            
+            playerContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            console.error("Walkie no encontrado para canal:", canal.id);
+        }
+    }
+
+    function cerrarPlayer() {
+        if(walkieVisible) {
+            walkieVisible.ocultar();
+            walkieVisible = null;
+        }
+        document.getElementById('playerContainer').style.display = 'none';
+        document.querySelectorAll('.thumbnail-card').forEach(card => {
+            card.classList.remove('active');
+        });
+        canalActualVisible = null;
+    }
+
+    document.getElementById('closePlayerBtn').addEventListener('click', cerrarPlayer);
+
+    async function preloadMic() {
+        try { await navigator.mediaDevices.getUserMedia({ audio: true }); } catch(e) {}
+    }
+    preloadMic();
+})();
+</script>
+</body>
+</html>
